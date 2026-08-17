@@ -1288,12 +1288,17 @@ select{
                 JUMLAH ORANG
             </label>
 
+            <!-- Hapus kata 'required' di baris ini -->
             <select
-                id="guestCount"
-                required>
+                id="guestCount"> 
 
-                <option value="">
+                <option value="-">
                     Pilih jumlah
+                </option>
+                
+                <!-- Tambahkan opsi ini untuk yang tidak hadir -->
+                <option>
+                    0 orang
                 </option>
 
                 <option>
@@ -1311,6 +1316,10 @@ select{
                 <option>
                     4 orang
                 </option>
+
+            </select>
+
+        </div>
 
             </select>
 
@@ -1772,8 +1781,12 @@ setInterval(
 
 
 /* =====================================================
-   UCAPAN
+   UCAPAN (TERHUBUNG KE GOOGLE SHEETS)
 ===================================================== */
+
+const SCRIPT_URL =
+    "https://script.google.com/macros/s/AKfycby3bzoI7s5Lkcxt4a404ecIBPHmZba0eCLdpv8KP7KY5kg2E8X9Th_GO0kEhL_b9B5_/exec";
+
 
 const form =
     document.getElementById(
@@ -1787,107 +1800,123 @@ const messagesList =
     );
 
 
-let messages =
-    JSON.parse(
-        localStorage.getItem(
-            "mepandesMessages"
-        )
-        ||
-        "[]"
-    );
-
-
 function renderMessages(){
 
-    messagesList.innerHTML =
-        "";
+    messagesList.innerHTML = `
+
+        <div class="empty">
+
+            Memuat ucapan...
+
+        </div>
+
+    `;
 
 
-    if(
-        messages.length === 0
-    ){
+    fetch(SCRIPT_URL)
+        .then(response => response.json())
+        .then(data => {
 
-        messagesList.innerHTML = `
-
-            <div class="empty">
-
-                Belum ada ucapan.
-                Jadilah yang pertama
-                memberikan ucapan ♡
-
-            </div>
-
-        `;
-
-        return;
-
-    }
+            messagesList.innerHTML =
+                "";
 
 
-    [
-        ...messages
-    ]
-    .reverse()
-    .forEach(
-        function(item){
+            if(
+                data.length === 0
+            ){
 
-            const box =
-                document.createElement(
-                    "div"
-                );
+                messagesList.innerHTML = `
 
-            box.className =
-                "message";
+                    <div class="empty">
 
+                        Belum ada ucapan.
+                        Jadilah yang pertama
+                        memberikan ucapan ♡
 
-            const name =
-                document.createElement(
-                    "strong"
-                );
+                    </div>
 
-            name.textContent =
-                item.name;
+                `;
+
+                return;
+
+            }
 
 
-            const info =
-                document.createElement(
-                    "small"
-                );
+            [
+                ...data
+            ]
+            .reverse()
+            .forEach(
+                function(item){
 
-            info.textContent =
-                item.attendance
-                +
-                " • "
-                +
-                item.guestCount
-                +
-                " • "
-                +
-                item.date;
+                    const box =
+                        document.createElement(
+                            "div"
+                        );
 
-
-            const text =
-                document.createElement(
-                    "p"
-                );
-
-            text.textContent =
-                item.message;
+                    box.className =
+                        "message";
 
 
-            box.appendChild(name);
+                    const name =
+                        document.createElement(
+                            "strong"
+                        );
 
-            box.appendChild(info);
+                    name.textContent =
+                        item.nama;
 
-            box.appendChild(text);
+
+                    const info =
+                        document.createElement(
+                            "small"
+                        );
+
+                    let dateObj = new Date(item.tanggal);
+                    let dateString = isNaN(dateObj) ? "" : dateObj.toLocaleDateString("id-ID", { day:"numeric", month:"long", year:"numeric" });
+
+                    info.textContent =
+                        item.kehadiran
+                        +
+                        " • "
+                        +
+                        item.jumlah
+                        +
+                        (dateString ? " • " + dateString : "");
 
 
-            messagesList.appendChild(
-                box
+                    const text =
+                        document.createElement(
+                            "p"
+                        );
+
+                    text.textContent =
+                        item.ucapan;
+
+
+                    box.appendChild(name);
+
+                    box.appendChild(info);
+
+                    box.appendChild(text);
+
+
+                    messagesList.appendChild(
+                        box
+                    );
+
+                }
             );
 
-        }
-    );
+        })
+        .catch(error => {
+            console.error("Error:", error);
+            messagesList.innerHTML = `
+                <div class="empty">
+                    Gagal memuat ucapan.
+                </div>
+            `;
+        });
 
 }
 
@@ -1898,70 +1927,83 @@ form.addEventListener(
 
         event.preventDefault();
 
+        const btnSubmit =
+            form.querySelector("button[type='submit']");
+            
+        const originalText =
+            btnSubmit.innerHTML;
+
+        btnSubmit.innerHTML =
+            "MENGIRIM...";
+            
+        btnSubmit.disabled =
+            true;
+
 
         const item = {
 
-            name:
+            nama:
                 document.getElementById(
                     "sender"
                 ).value.trim(),
 
-            attendance:
+            kehadiran:
                 document.getElementById(
                     "attendance"
                 ).value,
 
-            guestCount:
+            jumlah:
                 document.getElementById(
                     "guestCount"
                 ).value,
 
-            message:
+            ucapan:
                 document.getElementById(
                     "message"
-                ).value.trim(),
-
-            date:
-                new Date()
-                .toLocaleDateString(
-                    "id-ID",
-                    {
-                        day:"numeric",
-                        month:"long",
-                        year:"numeric"
-                    }
-                )
+                ).value.trim()
 
         };
 
 
         if(
-            !item.name ||
-            !item.message
+            !item.nama ||
+            !item.ucapan
         ){
-
+            btnSubmit.innerHTML = originalText;
+            btnSubmit.disabled = false;
             return;
-
         }
 
 
-        messages.push(
-            item
-        );
+        fetch(
+            SCRIPT_URL,
+            {
+                method: "POST",
+                body: JSON.stringify(item)
+            }
+        )
+        .then(response => response.json())
+        .then(result => {
 
+            alert("Ucapan berhasil dikirim! Terima kasih.");
 
-        localStorage.setItem(
-            "mepandesMessages",
-            JSON.stringify(
-                messages
-            )
-        );
+            form.reset();
 
+            renderMessages();
 
-        form.reset();
+        })
+        .catch(error => {
 
+            console.error("Error:", error);
+            alert("Terjadi kesalahan saat mengirim.");
 
-        renderMessages();
+        })
+        .finally(() => {
+            
+            btnSubmit.innerHTML = originalText;
+            btnSubmit.disabled = false;
+
+        });
 
     }
 );
